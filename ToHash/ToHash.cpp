@@ -14,7 +14,6 @@ void AddBitsToVector(uint8_t*, std::vector<uint8_t>*, int);
 uint8_t* SliceVector(std::vector<uint8_t>*, int, int);
 void LeftRotate(uint8_t*, int);
 uint8_t* ModularBinaryAdd(uint8_t*, uint8_t*);
-//bool ConvertVectorToArray(std::vector<bool>*);
 
 int main()
 {
@@ -140,9 +139,9 @@ int main()
 
 			//Bitwise add bufferA, the result of the above functions, the appropriate constant, and the appropriate message block
 			for (int k = 0; k < 32; k++) {
-				uint8_t* rendom2 = ModularBinaryAdd(K->at(i), MessageHolder->at(m));
-				uint8_t* rendom1 = ModularBinaryAdd(bufferA, rendom2);
-				f = ModularBinaryAdd(f, rendom1);
+				uint8_t* firstLevel = ModularBinaryAdd(K->at(i), MessageHolder->at(m));
+				uint8_t* secondLevel = ModularBinaryAdd(bufferA, firstLevel);
+				f = ModularBinaryAdd(f, secondLevel);
 			}
 
 			LeftRotate(f, ShiftAmount[i]);
@@ -166,7 +165,7 @@ int main()
 	//}
 
 	//FOR TESTING
-	//Possibly the final result
+	//Output the final result
 	for (int z = 0; z < 32; z++) {
 		std::cout << (double)HashA[z];
 	}
@@ -241,69 +240,26 @@ uint8_t* SliceVector(std::vector<uint8_t>* v, int startIndex, int endIndex) {
 }
 
 uint8_t* ModularBinaryAdd(uint8_t* number1, uint8_t* number2) {
-	uint8_t* returnArray = new uint8_t[32];
-	bool carry = false;
+	long long* decimalNumber1 = new long long();
+	long long* decimalNumber2 = new long long();
 
+	//Convert to decimal
 	for (int i = 31; i >= 0; i--) {
-		uint8_t result = number1[i] + number2[i];
-
-		if (carry) result += 1;
-
-		returnArray[i] = result % 2;
-
-		if (result > 1) carry = true;
-		else carry = false;
+		*decimalNumber1 += (pow(2, 31 - i) * number1[i]);
+		*decimalNumber2 += (pow(2, 31 - i) * number2[i]);
 	}
 
-	//TODO modulus is not working right
+	//Add and check modulus
+	long long* sum = new long long();
+	*sum = *decimalNumber1 + *decimalNumber2;
+
+	long long* remainder = new long long();
+	long long* modulus = new long long();
+	*modulus = pow(2, 32);
+	*remainder = *sum % *modulus;
 	
-	bool continueMod = true;
-
-	while (continueMod) {
-		bool doSubtract = false;
-
-		if (carry) {
-			carry = false;
-			returnArray[0] = 1;
-			doSubtract = true;
-		}
-		else if (returnArray[0] == 1) {
-			doSubtract = true;
-		}
-		else {
-			continueMod = false;
-		}
-
-		if (doSubtract) {
-			//Create the modulus comparison
-			uint8_t* modulus = new uint8_t[32]{ 1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0 };
-
-			//Do the subtraction
-			for (int i = 31; i >= 0; i--) {
-				if (returnArray[i] >= modulus[i]) {
-					returnArray[i] = returnArray[i] - modulus[i];
-				}
-				else {
-					int counter = 1;
-					bool continueBorrow = true;
-
-					while (continueBorrow) {
-						if (returnArray[i + counter] >= modulus[i]) {
-							returnArray[i + counter] -= 1;
-							returnArray[i] += 1;
-							continueBorrow = false;
-						}
-						else {
-							counter += 1;
-						}
-					}
-					returnArray[i] = returnArray[i] - modulus[i];
-				}
-			}
-		}
-
-		return returnArray;
-	}
+	//Convert back t obinary to return
+	return ConvertToBinary(*remainder, 32);
 }
 
 void LeftRotate(uint8_t* thingToRotate, int numberOfBits) {
@@ -320,13 +276,3 @@ void LeftRotate(uint8_t* thingToRotate, int numberOfBits) {
 		}
 	}
 }
-
-//Takes a vector and makes an array
-/*bool ConvertVectorToArray(std::vector<bool>* v) {
-	bool* returnArray = new bool[v->size];
-
-	for (int i = 0; i < v->size; i++) {
-		returnArray[i] = v->at(i);
-	}
-	return returnArray;
-}*/
