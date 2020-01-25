@@ -53,12 +53,23 @@ int main()
 	//Add 8 octets representing the length to the end
 	AddBitsToVector(ConvertToBinary((int)userInput.length()*8, 64), p_mainMessageInBinary, 64);
 
-	//Constants that will be used in buffers
-	//Values in hex are: A: 01234567, B: 89abcdef, C: fedcba98, D: 76543210
-	const uint8_t* A_VALUE = ConvertToBinary((int)0x67452301,32);
-	const uint8_t* B_VALUE = ConvertToBinary((int)0xefcdab89, 32);
-	const uint8_t* C_VALUE = ConvertToBinary((int)0x98badcfe, 32);
-	const uint8_t* D_VALUE = ConvertToBinary((int)0x10325476, 32);
+	//Set constants that will be used for the values in the buffers
+	//Some sources give these values in big endian and some in little endian. It is not clear which version the algorithm actually uses.
+	//I am using little because the IETF description uses little in the example code (it uses big in the written description though, so ?)
+	//Big endian: A: 01234567, B: 89abcdef, C: fedcba98, D: 76543210
+	//Little endian: A: 67452301 B: efcdab89 C: 98badcfe D: 10325476
+
+	//Big endian version
+	/*const uint8_t* A_VALUE = new uint8_t[32]{ 0,0,0,0,0,0,0,1,0,0,1,0,0,0,1,1,0,1,0,0,0,1,0,1,0,1,1,0,0,1,1,1 };
+	const uint8_t* B_VALUE = new uint8_t[32]{ 1,0,0,0,1,0,0,1,1,0,1,0,1,0,1,1,1,1,0,0,1,1,0,1,1,1,1,0,1,1,1,1 };
+	const uint8_t* C_VALUE = new uint8_t[32]{ 1,1,1,1,1,1,1,0,1,1,0,1,1,1,0,0,1,0,1,1,1,0,1,0,1,0,0,1,1,0,0,0 };
+	const uint8_t* D_VALUE = new uint8_t[32]{ 1,1,1,0,1,1,0,0,1,0,1,0,1,0,0,0,0,1,1,0,0,1,0,0,0,0,1,0,0,0,0,0 };*/
+
+	//Little endian version
+	const uint8_t* A_VALUE = new uint8_t[32]{ 0,1,1,0,0,1,1,1,0,1,0,0,0,1,0,1,0,0,1,0,0,0,1,1,0,0,0,0,0,0,0,1 };
+	const uint8_t* B_VALUE = new uint8_t[32]{ 1,1,1,0,1,1,1,1,1,1,0,0,1,1,0,1,1,0,1,0,1,0,1,1,1,0,0,0,1,0,0,1 };
+	const uint8_t* C_VALUE = new uint8_t[32]{ 1,0,0,1,1,0,0,0,1,0,1,1,1,0,1,0,1,1,0,1,1,1,0,0,1,1,1,1,1,1,1,0 };
+	const uint8_t* D_VALUE = new uint8_t[32]{ 0,0,0,1,0,0,0,0,0,0,1,1,0,0,1,0,0,1,0,1,0,1,0,0,0,1,1,1,0,1,1,0 };
 
 	//Constants that will be added to message
 	std::vector<uint8_t*>* K = new std::vector<uint8_t*>;
@@ -84,7 +95,7 @@ int main()
 	}
 
 	//Shift amounts for each round
-	int* ShiftAmount = new int[64]{ 7, 12, 17, 22,  7, 12, 17, 22,  7, 12, 17, 22,  7, 12, 17, 22, 5,  9, 14, 20,  5,  9, 14, 20,  5,  9, 14, 20,  5,  9, 14, 20, 4, 11, 16, 23,  4, 11, 16, 23,  4, 11, 16, 23,  4, 11, 16, 23, 6, 10, 15, 21,  6, 10, 15, 21,  6, 10, 15, 21,  6, 10, 15, 21 };
+	int* ShiftAmount = new int[64]{ 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21 };
 
 	//foreach 512 bit chunk in the message {
 
@@ -137,49 +148,44 @@ int main()
 				}
 			}
 
-			//Bitwise add bufferA, the result of the above functions, the appropriate constant, and the appropriate message block
-			for (int k = 0; k < 32; k++) {
-				uint8_t* firstLevel = ModularBinaryAdd(K->at(i), MessageHolder->at(m));
-				uint8_t* secondLevel = ModularBinaryAdd(bufferA, firstLevel);
-				f = ModularBinaryAdd(f, secondLevel);
-			}
+			//Bitwise modular add bufferA, the result of the above functions, the appropriate constant, and the appropriate message block
+			uint8_t* firstLevel = ModularBinaryAdd(K->at(i), MessageHolder->at(m));
+			uint8_t* secondLevel = ModularBinaryAdd(bufferA, firstLevel);
+			f = ModularBinaryAdd(f, secondLevel);
 
 			LeftRotate(f, ShiftAmount[i]);
 
-			//Rotate the buffers
-			for (int m = 0; m < 32; m++) {
-				bufferA[m] = bufferD[m];
-				bufferD[m] = bufferC[m];
-				bufferC[m] = bufferB[m];
-				bufferB[m] = bufferB[m] + f[m];
-			}
+			//Shuffle the buffers
+			bufferA = bufferD;
+			bufferD = bufferC;
+			bufferC = bufferB;
+			bufferB = ModularBinaryAdd(bufferB, f);
 		}
 
 		//Add the result of this 64 operation round to the running hash
-		for (int i = 0; i < 32; i++) {
-			HashA = ModularBinaryAdd(HashA, bufferA);
-			HashB = ModularBinaryAdd(HashB, bufferB);
-			HashC = ModularBinaryAdd(HashC, bufferC);
-			HashD = ModularBinaryAdd(HashD, bufferD);
-		}
+		HashA = ModularBinaryAdd(HashA, bufferA);
+		HashB = ModularBinaryAdd(HashB, bufferB);
+		HashC = ModularBinaryAdd(HashC, bufferC);
+		HashD = ModularBinaryAdd(HashD, bufferD);
 	//}
 
 	//FOR TESTING
 	//Output the final result
+	//The result is not yet correct
 	for (int z = 0; z < 32; z++) {
-		std::cout << (double)HashA[z];
+		std::cout << (int)HashA[z];
 	}
 
 	for (int z = 0; z < 32; z++) {
-		std::cout << (double)HashB[z];
+		std::cout << (int)HashB[z];
 	}
 
 	for (int z = 0; z < 32; z++) {
-		std::cout << (double)HashC[z];
+		std::cout << (int)HashC[z];
 	}
 
 	for (int z = 0; z < 32; z++) {
-		std::cout << (double)HashD[z];
+		std::cout << (int)HashD[z];
 	}
 }
 
@@ -258,7 +264,7 @@ uint8_t* ModularBinaryAdd(uint8_t* number1, uint8_t* number2) {
 	*modulus = pow(2, 32);
 	*remainder = *sum % *modulus;
 	
-	//Convert back t obinary to return
+	//Convert back to binary to return
 	return ConvertToBinary(*remainder, 32);
 }
 
