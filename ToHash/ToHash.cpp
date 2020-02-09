@@ -1,7 +1,13 @@
 // ToHash.cpp : This file contains the 'main' function. Program execution begins and ends there.
 //
 //Created by Noah Kulas, 2019
-//Some parts were taken from https://en.wikipedia.org/wiki/MD5
+
+//The following sources were very useful to me in making this and deserve credit:
+//Some code was taken from Wikipedia: https://en.wikipedia.org/wiki/MD5
+//Official IETF md5 specification: https://www.ietf.org/rfc/rfc1321.txt
+//Dr. Herong Yang's cryptography tutorial: http://www.herongyang.com/Cryptography/MD5-Message-Digest-Algorithm-Overview.html
+//Md5 padding demo: https://fthb321.github.io/MD5-Hash/MD5OurVersion2.html
+//University of Nebraska - Lincoln md5 demo: https://cse.unl.edu/~ssamal/crypto/genhash.php
 
 #include <iostream>
 #include <conio.h>
@@ -12,7 +18,7 @@ uint8_t* ConvertToBinary(int, int);
 uint8_t* ConvertToBinary(long long, int);
 void AddBitsToVector(uint8_t*, std::vector<uint8_t>*, int);
 uint8_t* SliceVector(std::vector<uint8_t>*, int, int);
-//uint8_t* InvertBitOrders(uint8_t*, int);
+uint8_t* ChangeEndianess(uint8_t*, int);
 void LeftRotate(uint8_t*, int);
 uint8_t* ModularBinaryAdd(uint8_t*, uint8_t*);
 
@@ -51,21 +57,18 @@ int main()
 		}
 	}
 
-	//Bit invert
-	uint8_t* newList = new uint8_t[p_mainMessageInBinary->size()];
-	for (int i = 0; i < p_mainMessageInBinary->size(); i += 32) {
-		for (int j = 0; j <= 24; j += 8) {
-			for (int k = 0; k < 8; k++) {
-				newList[i + (24 - j) + k] = p_mainMessageInBinary->at(i + j + k);
-			}
-		}
-	}
-
+	//Invert endianess
 	int size = p_mainMessageInBinary->size();
-	p_mainMessageInBinary = new std::vector<uint8_t>();
-	for (int i = 0; i < size; i++) {
-		p_mainMessageInBinary->push_back(newList[i]);
+	
+	std::vector<uint8_t>* newMessage = new std::vector<uint8_t>();
+	for (int i = 0; i <= size - 32; i += 32) {
+		 uint8_t* littleEndianByte = ChangeEndianess(SliceVector(p_mainMessageInBinary, i, i + 31), 32);
+
+		 for (int j = 0; j < 32; j++) {
+			 newMessage->push_back((int)littleEndianByte[j]);
+		 }
 	}
+	p_mainMessageInBinary = newMessage;
 	
 	//Add 8 octets representing the length to the end
 	uint8_t* lengthInBinary = ConvertToBinary((int)userInput.length() * 8, 64);
@@ -150,19 +153,19 @@ int main()
 		for (int i = 0; i < 64; i++) {
 			for (int j = 0; j < 32; j++) {
 				if (i >= 0 && i <= 15) {
-					f[j] = ((bufferB[j] & bufferC[j]) | ((~bufferB[j]) & bufferD[j]));
+					f[j] = ((bufferB[j] && bufferC[j]) || ((!bufferB[j]) && bufferD[j]));
 					m = i;
 				}
 				else if (i >= 16 && i <= 31) {
-					f[j] = ((bufferD[j] & bufferB[j]) | ((~bufferD[j]) & bufferC[j]));
+					f[j] = ((bufferD[j] && bufferB[j]) || ((!bufferD[j]) && bufferC[j]));
 					m = (((5 * i) + 1) % 16);
 				}
 				else if (i >= 32 && i <= 47) {
-					f[j] = (bufferB[j] ^ bufferC[j] ^ bufferD[j]);
+					f[j] = (!(!bufferB[j] != !bufferC[j]) != !bufferD[j]);
 					m = (((3 * i) + 5) % 16);
 				}
 				else if (i >= 48 && i <= 63) {
-					f[j] = (bufferC[j] ^ (bufferB[j] | (~bufferD[j])));
+					f[j] = (!bufferC[j] != !(bufferB[j] || (!bufferD[j])));
 					m = ((7 * i) % 16);
 				}
 			}
@@ -188,22 +191,34 @@ int main()
 		HashD = ModularBinaryAdd(HashD, bufferD);
 	//}
 
-	//FOR TESTING
+	//Convert back to big endian
+	std::vector<uint8_t>* littleEndianVector = new std::vector<uint8_t>();
+
+	for (int i = 0; i < 32; i++) {
+		littleEndianVector->push_back(HashA[i]);
+	}
+	for (int i = 0; i < 32; i++) {
+		littleEndianVector->push_back(HashB[i]);
+	}
+	for (int i = 0; i < 32; i++) {
+		littleEndianVector->push_back(HashC[i]);
+	}
+	for (int i = 0; i < 32; i++) {
+		littleEndianVector->push_back(HashD[i]);
+	}
+
+	std::vector<uint8_t>* bigEndianVector = new std::vector<uint8_t>();
+	for (int i = 0; i < 128; i += 32) {
+		uint8_t* littleEndianByte = ChangeEndianess(SliceVector(littleEndianVector, i, i + 31), 32);
+
+		for (int j = 0; j < 32; j++) {
+			bigEndianVector->push_back((int)littleEndianByte[j]);
+		}
+	}
+
 	//Output the final result
-	for (int z = 0; z < 32; z++) {
-		std::cout << (int)HashA[z];
-	}
-
-	for (int z = 0; z < 32; z++) {
-		std::cout << (int)HashB[z];
-	}
-
-	for (int z = 0; z < 32; z++) {
-		std::cout << (int)HashC[z];
-	}
-
-	for (int z = 0; z < 32; z++) {
-		std::cout << (int)HashD[z];
+	for (int z = 0; z < 128; z++) {
+		std::cout << (int)bigEndianVector->at(z);
 	}
 }
 
@@ -263,17 +278,22 @@ uint8_t* SliceVector(std::vector<uint8_t>* v, int startIndex, int endIndex) {
 	return returnArray;
 }
 
-/*uint8_t* InvertBitOrders(uint8_t* bitList, int bitListLength) {
+uint8_t* ChangeEndianess(uint8_t* bitList, int bitListLength) {
 	uint8_t* newList = new uint8_t[bitListLength];
 
-	for (int i = (bitListLength - 1) - 8; i >= 0; i -= 8) {
+	int newIndex = 0;
+	for (int i = (bitListLength) - 8; i >= 0; i -= 8) {
+
 		for (int j = 0; j < 8; j++) {
-			newList[((bitListLength - 1) - i)] = bitList[i + j];
+			newList[newIndex + j] = bitList[i + j];
+			//int a = newList[newIndex + j];
+			//std::cout << (int)a;
 		}
+		newIndex += 8;
 	}
 
 	return newList;
-}*/
+}
 
 uint8_t* ModularBinaryAdd(uint8_t* number1, uint8_t* number2) {
 	long long* decimalNumber1 = new long long();
@@ -296,27 +316,6 @@ uint8_t* ModularBinaryAdd(uint8_t* number1, uint8_t* number2) {
 	
 	//Convert back to binary to return
 	return ConvertToBinary(*remainder, 32);
-
-	/*bool carry = false;
-	uint8_t* returnArray = new uint8_t[32];
-	for (int i = 0; i < 32; i++) {
-		uint8_t value = number1[i] + number2[i];
-
-		if (carry) {
-			value += 1;
-		}
-
-		if (value > 1) {
-			value = value % 2;
-			carry = true;
-		}
-		else {
-			carry = false;
-		}
-
-		returnArray[i] = value;
-	}
-	return returnArray;*/
 }
 
 void LeftRotate(uint8_t* thingToRotate, int numberOfBits) {
