@@ -12,6 +12,7 @@ uint8_t* ConvertToBinary(int, int);
 uint8_t* ConvertToBinary(long long, int);
 void AddBitsToVector(uint8_t*, std::vector<uint8_t>*, int);
 uint8_t* SliceVector(std::vector<uint8_t>*, int, int);
+//uint8_t* InvertBitOrders(uint8_t*, int);
 void LeftRotate(uint8_t*, int);
 uint8_t* ModularBinaryAdd(uint8_t*, uint8_t*);
 
@@ -31,7 +32,7 @@ int main()
 
 		AddBitsToVector(p_charaterInBinary, p_mainMessageInBinary, 8);
 	}
-	
+
 	//Add padding to the message
 	//Factor of 512 bits needed / 8 bits per octet = 64 octets needed
 	//Include 8 extra octets in existing message because they will be used below to represent length
@@ -49,23 +50,41 @@ int main()
 			AddBitsToVector(ConvertToBinary(0,8), p_mainMessageInBinary, 8);
 		}
 	}
+
+	//Bit invert
+	uint8_t* newList = new uint8_t[p_mainMessageInBinary->size()];
+	for (int i = 0; i < p_mainMessageInBinary->size(); i += 32) {
+		for (int j = 0; j <= 24; j += 8) {
+			for (int k = 0; k < 8; k++) {
+				newList[i + (24 - j) + k] = p_mainMessageInBinary->at(i + j + k);
+			}
+		}
+	}
+
+	int size = p_mainMessageInBinary->size();
+	p_mainMessageInBinary = new std::vector<uint8_t>();
+	for (int i = 0; i < size; i++) {
+		p_mainMessageInBinary->push_back(newList[i]);
+	}
 	
 	//Add 8 octets representing the length to the end
-	AddBitsToVector(ConvertToBinary((int)userInput.length()*8, 64), p_mainMessageInBinary, 64);
+	uint8_t* lengthInBinary = ConvertToBinary((int)userInput.length() * 8, 64);
+	uint8_t* lowOrderBits = new uint8_t[32];
+	uint8_t* highOrderBits = new uint8_t[32];
+
+	for (int i = 32; i < 64; i++) {
+		lowOrderBits[(i - 32)] = lengthInBinary[i];
+	}
+
+	for (int i = 0; i < 32; i++) {
+		highOrderBits[i] = lengthInBinary[i];
+	}
+
+	AddBitsToVector(lowOrderBits, p_mainMessageInBinary, 32);
+	AddBitsToVector(highOrderBits, p_mainMessageInBinary, 32);
 
 	//Set constants that will be used for the values in the buffers
-	//Some sources give these values in big endian and some in little endian. It is not clear which version the algorithm actually uses.
-	//I am using little because the IETF description uses little in the example code (it uses big in the written description though, so ?)
-	//Big endian: A: 01234567, B: 89abcdef, C: fedcba98, D: 76543210
-	//Little endian: A: 67452301 B: efcdab89 C: 98badcfe D: 10325476
-
-	//Big endian version
-	/*const uint8_t* A_VALUE = new uint8_t[32]{ 0,0,0,0,0,0,0,1,0,0,1,0,0,0,1,1,0,1,0,0,0,1,0,1,0,1,1,0,0,1,1,1 };
-	const uint8_t* B_VALUE = new uint8_t[32]{ 1,0,0,0,1,0,0,1,1,0,1,0,1,0,1,1,1,1,0,0,1,1,0,1,1,1,1,0,1,1,1,1 };
-	const uint8_t* C_VALUE = new uint8_t[32]{ 1,1,1,1,1,1,1,0,1,1,0,1,1,1,0,0,1,0,1,1,1,0,1,0,1,0,0,1,1,0,0,0 };
-	const uint8_t* D_VALUE = new uint8_t[32]{ 1,1,1,0,1,1,0,0,1,0,1,0,1,0,0,0,0,1,1,0,0,1,0,0,0,0,1,0,0,0,0,0 };*/
-
-	//Little endian version
+	//A: 67452301 B: efcdab89 C: 98badcfe D: 10325476
 	const uint8_t* A_VALUE = new uint8_t[32]{ 0,1,1,0,0,1,1,1,0,1,0,0,0,1,0,1,0,0,1,0,0,0,1,1,0,0,0,0,0,0,0,1 };
 	const uint8_t* B_VALUE = new uint8_t[32]{ 1,1,1,0,1,1,1,1,1,1,0,0,1,1,0,1,1,0,1,0,1,0,1,1,1,0,0,0,1,0,0,1 };
 	const uint8_t* C_VALUE = new uint8_t[32]{ 1,0,0,1,1,0,0,0,1,0,1,1,1,0,1,0,1,1,0,1,1,1,0,0,1,1,1,1,1,1,1,0 };
@@ -76,7 +95,7 @@ int main()
 	for (int i = 0; i < 64; i++) {
 		K->push_back(
 			ConvertToBinary(
-				(long long)(floor(pow(2, 32) * abs(sin(i + 1)))),
+				(long long)(pow(2,32) * abs(sin(i+1))),
 			32)
 		);
 	}
@@ -171,7 +190,6 @@ int main()
 
 	//FOR TESTING
 	//Output the final result
-	//The result is not yet correct
 	for (int z = 0; z < 32; z++) {
 		std::cout << (int)HashA[z];
 	}
@@ -245,6 +263,18 @@ uint8_t* SliceVector(std::vector<uint8_t>* v, int startIndex, int endIndex) {
 	return returnArray;
 }
 
+/*uint8_t* InvertBitOrders(uint8_t* bitList, int bitListLength) {
+	uint8_t* newList = new uint8_t[bitListLength];
+
+	for (int i = (bitListLength - 1) - 8; i >= 0; i -= 8) {
+		for (int j = 0; j < 8; j++) {
+			newList[((bitListLength - 1) - i)] = bitList[i + j];
+		}
+	}
+
+	return newList;
+}*/
+
 uint8_t* ModularBinaryAdd(uint8_t* number1, uint8_t* number2) {
 	long long* decimalNumber1 = new long long();
 	long long* decimalNumber2 = new long long();
@@ -266,6 +296,27 @@ uint8_t* ModularBinaryAdd(uint8_t* number1, uint8_t* number2) {
 	
 	//Convert back to binary to return
 	return ConvertToBinary(*remainder, 32);
+
+	/*bool carry = false;
+	uint8_t* returnArray = new uint8_t[32];
+	for (int i = 0; i < 32; i++) {
+		uint8_t value = number1[i] + number2[i];
+
+		if (carry) {
+			value += 1;
+		}
+
+		if (value > 1) {
+			value = value % 2;
+			carry = true;
+		}
+		else {
+			carry = false;
+		}
+
+		returnArray[i] = value;
+	}
+	return returnArray;*/
 }
 
 void LeftRotate(uint8_t* thingToRotate, int numberOfBits) {
