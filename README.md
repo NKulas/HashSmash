@@ -1,5 +1,5 @@
 # HashSmash
-<h1>Create and attempt to break md5 hashes<h1>
+<h2>Create and attempt to break md5 hashes</h2>
 <p>The goal of this project was for me to play around with md5 hashes</p>
 
 <h2>Phase 1</h2>
