@@ -30,45 +30,45 @@ int main()
 	std::getline(std::cin, userInput);
 
 	//Convert the message to binary
-	std::vector<uint8_t>* p_mainMessageInBinary = new std::vector<uint8_t>();
+	std::vector<uint8_t>* mainMessageInBinary = new std::vector<uint8_t>();
 	
 	for (int i = 0; i < userInput.length(); i++) {
 		int charaterInAsciiDecimal = (int)userInput[i];
 		uint8_t* p_charaterInBinary = ConvertToBinary(charaterInAsciiDecimal,8);
 
-		AddBitsToVector(p_charaterInBinary, p_mainMessageInBinary, 8);
+		AddBitsToVector(p_charaterInBinary, mainMessageInBinary, 8);
 	}
 
 	//Add padding to the message
 	//Factor of 512 bits needed / 8 bits per octet = 64 octets needed
 	//Include 8 extra octets in existing message because they will be used below to represent length
-	int messageOctets = p_mainMessageInBinary->size() / 8;
+	int messageOctets = mainMessageInBinary->size() / 8;
 	int octetsRemaining = 64 - ((messageOctets + 8) % 64);
 	bool first = true;
 
 	for (int i = octetsRemaining; i > 0; i--) {
 		if (first) {
 			//First octet has a leading one followed by zeros
-			AddBitsToVector(ConvertToBinary(128,8), p_mainMessageInBinary, 8);
+			AddBitsToVector(ConvertToBinary(128,8), mainMessageInBinary, 8);
 			first = false;
 		}
 		else {
-			AddBitsToVector(ConvertToBinary(0,8), p_mainMessageInBinary, 8);
+			AddBitsToVector(ConvertToBinary(0,8), mainMessageInBinary, 8);
 		}
 	}
 
 	//Invert endianess
-	int size = p_mainMessageInBinary->size();
+	int size = mainMessageInBinary->size();
 	
 	std::vector<uint8_t>* newMessage = new std::vector<uint8_t>();
 	for (int i = 0; i <= size - 32; i += 32) {
-		 uint8_t* littleEndianByte = ChangeEndianess(SliceVector(p_mainMessageInBinary, i, i + 31), 32);
+		 uint8_t* littleEndianByte = ChangeEndianess(SliceVector(mainMessageInBinary, i, i + 31), 32);
 
 		 for (int j = 0; j < 32; j++) {
 			 newMessage->push_back((int)littleEndianByte[j]);
 		 }
 	}
-	p_mainMessageInBinary = newMessage;
+	mainMessageInBinary = newMessage;
 	
 	//Add 8 octets representing the length to the end
 	uint8_t* lengthInBinary = ConvertToBinary((int)userInput.length() * 8, 64);
@@ -83,8 +83,8 @@ int main()
 		highOrderBits[i] = lengthInBinary[i];
 	}
 
-	AddBitsToVector(lowOrderBits, p_mainMessageInBinary, 32);
-	AddBitsToVector(highOrderBits, p_mainMessageInBinary, 32);
+	AddBitsToVector(lowOrderBits, mainMessageInBinary, 32);
+	AddBitsToVector(highOrderBits, mainMessageInBinary, 32);
 
 	//Set constants that will be used for the values in the buffers
 	//A: 67452301 B: efcdab89 C: 98badcfe D: 10325476
@@ -119,10 +119,26 @@ int main()
 	//Shift amounts for each round
 	int* ShiftAmount = new int[64]{ 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21 };
 
-	//foreach 512 bit chunk in the message {
+	//Prepare buffers
+	uint8_t* bufferA = new uint8_t[32];
+	uint8_t* bufferB = new uint8_t[32];
+	uint8_t* bufferC = new uint8_t[32];
+	uint8_t* bufferD = new uint8_t[32];
 
-		//Get the first 512 bit chunk
-		uint8_t* FivtwelChunk = SliceVector(p_mainMessageInBinary, 0, 511);
+	//Set the starting values of the hash chuncks
+	//These are later used in the buffers
+	for (int i = 0; i < 32; i++) {
+		HashA[i] = A_VALUE[i];
+		HashB[i] = B_VALUE[i];
+		HashC[i] = C_VALUE[i];
+		HashD[i] = D_VALUE[i];
+	}
+
+	//Foreach 512 bit chunk in the message
+	for (int z = 0; z < mainMessageInBinary->size(); z += 512) {
+
+		//Get this 512 bit chunk
+		uint8_t* FivtwelChunk = SliceVector(mainMessageInBinary, z, z + 511);
 
 		//Break this into 32 bit chuncks
 		std::vector<uint8_t*>* MessageHolder = new std::vector<uint8_t*>;
@@ -134,22 +150,18 @@ int main()
 			MessageHolder->push_back(ThretoChunk);
 		}
 
-		//Set buffer values
-		uint8_t* bufferA = new uint8_t[32];
-		uint8_t* bufferB = new uint8_t[32];
-		uint8_t* bufferC = new uint8_t[32];
-		uint8_t* bufferD = new uint8_t[32];
-
+		//Start the buffers with the current values in the hash
 		for (int i = 0; i < 32; i++) {
-			bufferA[i] = A_VALUE[i];
-			bufferB[i] = B_VALUE[i];
-			bufferC[i] = C_VALUE[i];
-			bufferD[i] = D_VALUE[i];
+			bufferA[i] = HashA[i];
+			bufferB[i] = HashB[i];
+			bufferC[i] = HashC[i];
+			bufferD[i] = HashD[i];
 		}
 
 		//Put the buffers through the transform functions
 		uint8_t* f = new uint8_t[32];
 		int m;
+
 		for (int i = 0; i < 64; i++) {
 			for (int j = 0; j < 32; j++) {
 				if (i >= 0 && i <= 15) {
@@ -189,7 +201,7 @@ int main()
 		HashB = ModularBinaryAdd(HashB, bufferB);
 		HashC = ModularBinaryAdd(HashC, bufferC);
 		HashD = ModularBinaryAdd(HashD, bufferD);
-	//}
+	}
 
 	//Convert back to big endian
 	std::vector<uint8_t>* littleEndianVector = new std::vector<uint8_t>();
@@ -220,6 +232,30 @@ int main()
 	for (int z = 0; z < 128; z++) {
 		std::cout << (int)bigEndianVector->at(z);
 	}
+
+	//Cleanup the heap
+	//I know this does not cover them all; that is still in the works
+	delete mainMessageInBinary;
+	//delete newMessage;
+	delete[] lengthInBinary;
+	delete[] lowOrderBits;
+	delete[] highOrderBits;
+	delete[] A_VALUE;
+	delete[] B_VALUE;
+	delete[] C_VALUE;
+	delete[] D_VALUE;
+	delete[] HashA;
+	delete[] HashB;
+	delete[] HashC;
+	delete[] HashD;
+	delete[] bufferA;
+	delete[] bufferB;
+	delete[] bufferC;
+	delete[] bufferD;
+	delete K;
+	delete[] ShiftAmount;
+	delete littleEndianVector;
+	delete bigEndianVector;
 }
 
 //Support functions

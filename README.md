@@ -3,7 +3,7 @@
 <p>The goal of this project was for me to play around with md5 hashes</p>
 
 <h2>Phase 1</h2>
-<p>The "ToHash" project was for me to become familiar with the md5 algorithm and understand the specifics of how it works. This project is now functional. Note that it currently can only hash strings up to 55 characters. The output is in binary.</p>
+<p>The "ToHash" project was for me to become familiar with the md5 algorithm and understand the specifics of how it works. This project is now functional. It will work with any length input string. The output is in binary.</p>
 
 <h2>Phase 2</h2>
 <p>The "ReverseHash" project is my attempt to break md5 hashes.</p>
