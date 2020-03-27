@@ -322,8 +322,6 @@ uint8_t* ChangeEndianess(uint8_t* bitList, int bitListLength) {
 
 		for (int j = 0; j < 8; j++) {
 			newList[newIndex + j] = bitList[i + j];
-			//int a = newList[newIndex + j];
-			//std::cout << (int)a;
 		}
 		newIndex += 8;
 	}

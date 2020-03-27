@@ -12,4 +12,6 @@
 <li>For each operation the inverse of creating the hash can be done. Subtracting the value of buffer B, undoing the bit rotation, subtracting the known constant, and subtracting the result of applying a know function to the other buffers leaves only the value of buffer A plus a message chunk.</li>
 <li>Assuming that all characters are letters, numbers, and symbols represented by ASCII, message chuncks will have zeros in known locations. This will give some direction in guessing the values for the message chunk and buffer A.</li>
 <li>My goal is that using this methodology will allow me to reverse an md5 hash to at least some degree.</li>
+<br>
+<p>Currently, this outputs what the values of the four buffers would be at the end of the 64 rounds for the given hash.</p>
 </ul>
