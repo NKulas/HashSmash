@@ -13,6 +13,9 @@ uint8_t* ChangeEndianess(uint8_t*, int);
 uint8_t* ModularBinarySubtract(uint8_t*, uint8_t*);
 uint8_t* BinarySubtract(uint8_t*, uint8_t*);
 uint8_t* BinaryAdd(uint8_t*, uint8_t*);
+void RightRotate(uint8_t*, int);
+uint8_t* ConvertToBinary(int, int);
+uint8_t* ConvertToBinary(long long, int);
 
 const char* hexValues = new char[16]{ '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F' };
 
@@ -65,10 +68,12 @@ int main()
 
 	//Set initalizer values
 	//A: 67452301 B: efcdab89 C: 98badcfe D: 10325476
-	uint8_t* startA = new uint8_t[32]{ 0,1,1,0,0,1,1,1,0,1,0,0,0,1,0,1,0,0,1,0,0,0,1,1,0,0,0,0,0,0,0,1 };
-	uint8_t* startB = new uint8_t[32]{ 1,1,1,0,1,1,1,1,1,1,0,0,1,1,0,1,1,0,1,0,1,0,1,1,1,0,0,0,1,0,0,1 };
-	uint8_t* startC = new uint8_t[32]{ 1,0,0,1,1,0,0,0,1,0,1,1,1,0,1,0,1,1,0,1,1,1,0,0,1,1,1,1,1,1,1,0 };
-	uint8_t* startD = new uint8_t[32]{ 0,0,0,1,0,0,0,0,0,0,1,1,0,0,1,0,0,1,0,1,0,1,0,0,0,1,1,1,0,1,1,0 };
+	uint8_t* startA = new uint8_t[32] { 0,1,1,0,0,1,1,1,0,1,0,0,0,1,0,1,0,0,1,0,0,0,1,1,0,0,0,0,0,0,0,1 };
+	uint8_t* startB = new uint8_t[32] { 1,1,1,0,1,1,1,1,1,1,0,0,1,1,0,1,1,0,1,0,1,0,1,1,1,0,0,0,1,0,0,1 };
+	uint8_t* startC = new uint8_t[32] { 1,0,0,1,1,0,0,0,1,0,1,1,1,0,1,0,1,1,0,1,1,1,0,0,1,1,1,1,1,1,1,0 };
+	uint8_t* startD = new uint8_t[32] { 0,0,0,1,0,0,0,0,0,0,1,1,0,0,1,0,0,1,0,1,0,1,0,0,0,1,1,1,0,1,1,0 };
+
+	int* ShiftAmount = new int[64]{ 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 7, 12, 17, 22, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 5, 9, 14, 20, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 4, 11, 16, 23, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21, 6, 10, 15, 21 };
 
 	//Undo adding initializer values to buffers
 	bufferA = ModularBinarySubtract(bufferA, startA);
@@ -76,31 +81,79 @@ int main()
 	bufferC = ModularBinarySubtract(bufferC, startC);
 	bufferD = ModularBinarySubtract(bufferD, startD);
 
-	//Current termination point
-	//Outputs the values in each buffer at the end of 64 rounds
-	std::cout << "A: ";
-	for (int z = 0; z < 32; z++) {
-		std::cout << (int)bufferA[z];
-	}
-	std::cout << "\n\n";
+	uint8_t* activeBranch;
+	for (int round = 63; round >= 0; round--) {
+		//Reverse shuffle the buffers
+		activeBranch = bufferB;
+		bufferB = bufferC;
+		bufferC = bufferD;
+		bufferD = bufferA;
 
-	std::cout << "B: ";
-	for (int z = 0; z < 32; z++) {
-		std::cout << (int)bufferB[z];
-	}
-	std::cout << "\n\n";
+		//Undo adding buffer B
+		activeBranch = ModularBinarySubtract(activeBranch, bufferB);
 
-	std::cout << "C: ";
-	for (int z = 0; z < 32; z++) {
-		std::cout << (int)bufferC[z];
-	}
-	std::cout << "\n\n";
+		//Undo bit rotation
+		RightRotate(activeBranch, ShiftAmount[round]);
 
-	std::cout << "D: ";
-	for (int z = 0; z < 32; z++) {
-		std::cout << (int)bufferD[z];
+		//Subtract constant
+		uint8_t* constant = ConvertToBinary((long long)(pow(2, 32) * abs(sin(round + 1))), 32);
+		activeBranch = ModularBinarySubtract(activeBranch, constant);
+
+		//Change the order and subtract the result of the transform functions first
+		uint8_t* f = new uint8_t[32];
+		int m;
+
+		for (int j = 0; j < 32; j++) {
+			if (round >= 0 && round <= 15) {
+				//(B and C) or (~B and D)
+				f[j] = ((bufferB[j] && bufferC[j]) || ((!bufferB[j]) && bufferD[j]));
+				m = round;
+			}
+			else if (round >= 16 && round <= 31) {
+				//(D and B) or (~D and C)
+				f[j] = ((bufferD[j] && bufferB[j]) || ((!bufferD[j]) && bufferC[j]));
+				m = (((5 * round) + 1) % 16);
+			}
+			else if (round >= 32 && round <= 47) {
+				//B xor C xor D
+				f[j] = (!(!bufferB[j] != !bufferC[j]) != !bufferD[j]);
+				m = (((3 * round) + 5) % 16);
+			}
+			else if (round >= 48 && round <= 63) {
+				//C xor (B or ~D)
+				f[j] = (!bufferC[j] != !(bufferB[j] || (!bufferD[j])));
+				m = ((7 * round) % 16);
+			}
+		}
+
+		activeBranch = ModularBinarySubtract(activeBranch, f);
+
+		
+		//activeBranch now contains the sum of the message chunk and bufferA from the round (numerically) before
+		for (int z = 0; z < 32; z++) {
+			std::cout << (int)activeBranch[z];
+		}
+		std::cout << "\n";
+
+		//The concatination of the message chunck and bufferA for round 63 is the current termination point
+		//Cleanup the heap
+		delete[] bufferA;
+		delete[] bufferB;
+		delete[] bufferC;
+		//delete[] bufferD; this still points to the same object as bufferA, so it is already deleted
+		delete[] startA;
+		delete[] startB;
+		delete[] startC;
+		delete[] startD;
+		delete[] ShiftAmount;
+		delete[] f;
+		delete[] activeBranch;
+		delete[] constant;
+		
+		//Terminate
+		return 0;
 	}
-	std::cout << "\n";
+	
 }
 
 //Support functions
@@ -153,6 +206,17 @@ uint8_t* ChangeEndianess(uint8_t* bitList, int bitListLength) {
 }
 
 uint8_t* ModularBinarySubtract(uint8_t* number1, uint8_t* number2) {
+	//Create new arrays to avoid problems with this function changing the values of the ones passed in
+	uint8_t* number1prime = new uint8_t[32];
+	uint8_t* number2prime = new uint8_t[32];
+	for (int i = 0; i < 32; i++) {
+		number1prime[i] = number1[i];
+	}
+
+	for (int i = 0; i < 32; i++) {
+		number2prime[i] = number2[i];
+	}
+
 	//Determine which is greater
 	int greaterNumber;
 	bool areEqual = true;
@@ -160,18 +224,18 @@ uint8_t* ModularBinarySubtract(uint8_t* number1, uint8_t* number2) {
 	uint8_t* lesser = new uint8_t;
 
 	for (int i = 0; i < 32; i++) {
-		if (number1[i] > number2[i]) {
+		if (number1prime[i] > number2prime[i]) {
 			areEqual = false;
 			greaterNumber = 1;
-			greater = number1;
-			lesser = number2;
+			greater = number1prime;
+			lesser = number2prime;
 			break;
 		}
 		else if (number2[i] > number1[i]) {
 			areEqual = false;
 			greaterNumber = 2;
-			greater = number2;
-			lesser = number1;
+			greater = number2prime;
+			lesser = number1prime;
 			break;
 		}
 	}
@@ -189,9 +253,9 @@ uint8_t* ModularBinarySubtract(uint8_t* number1, uint8_t* number2) {
 		}
 		else {
 			//If negative, subtract absolute value from modulus
+			//Adding one to the result is easier than representing the modulus with 33 bits
 			uint8_t* modulus = new uint8_t[32]{ 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1 };
 			uint8_t* one = new uint8_t[32]{ 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1 };
-			//uint8_t* modulus = new uint8_t[33]{ 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0 };
 
 			uint8_t* intermediateResult = BinarySubtract(modulus, result);
 			uint8_t* finalResult = BinaryAdd(intermediateResult, one);
@@ -206,7 +270,7 @@ uint8_t* BinarySubtract(uint8_t* number1, uint8_t* number2) {
 
 	for (int i = 31; i >= 0; i--) {
 		if (number1[i] < number2[i]) {
-			l2: for (int j = i - 1; j >= 0; j--) {
+			for (int j = i - 1; j >= 0; j--) {
 				if (number1[j] == 1) {
 					number1[j] = 0;
 
@@ -243,4 +307,59 @@ uint8_t* BinaryAdd(uint8_t* number1, uint8_t* number2) {
 	}
 
 	return result;
+}
+
+void RightRotate(uint8_t* thingToRotate, int numberOfBits) {
+	for (int i = 0; i < numberOfBits; i++) {
+		uint8_t temporaryHolder = thingToRotate[31];
+
+		for (int j = 31; j >= 0; j--) {
+			if (j > 0) {
+				thingToRotate[j] = thingToRotate[j - 1];
+			}
+			else {
+				thingToRotate[j] = temporaryHolder;
+			}
+		}
+	}
+}
+
+uint8_t* ConvertToBinary(int decimalNumber, int numberOfBits) {
+	//Convert to binary
+	uint8_t* binary = new uint8_t[numberOfBits];
+
+	//Create a vector representing 8 bits
+	for (int x = 0; x < numberOfBits; x++) {
+		*(binary + x) = 0;
+	}
+
+	//For each bit, calculate it binary value, determine if this can be pulled out of the decimal number
+	for (int j = (numberOfBits - 1); j >= 0; j--) {
+		long long twoMultiple = pow(2, j);
+		binary[(numberOfBits - 1) - j] = (int)floor(decimalNumber / twoMultiple);
+		decimalNumber = decimalNumber % twoMultiple;
+	}
+	return binary;
+}
+
+uint8_t* ConvertToBinary(long long decimalNumber, int numberOfBits) {
+	//Convert to binary
+	uint8_t* binary = new uint8_t[numberOfBits];
+
+	//Create a vector representing 8 bits
+	for (int x = 0; x < numberOfBits; x++) {
+		*(binary + x) = 0;
+	}
+
+	//For each bit, calculate it binary value, determine if this can be pulled out of the decimal number
+	for (int j = (numberOfBits - 1); j >= 0; j--) {
+		long long twoMultiple = pow(2, j);
+		binary[(numberOfBits - 1) - j] = (int)floor(decimalNumber / twoMultiple);
+		decimalNumber = decimalNumber % twoMultiple;
+	}
+	return binary;
+}
+
+uint8_t FindUnknown(uint8_t item1, uint8_t item2) {
+	return 0;
 }

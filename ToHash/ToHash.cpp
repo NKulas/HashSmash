@@ -2,12 +2,13 @@
 //
 //Created by Noah Kulas, 2019
 
-//The following sources were very useful to me in making this and deserve credit:
-//Some code was taken from Wikipedia: https://en.wikipedia.org/wiki/MD5
+//The following resources were incedibly helpful to me and deserve credit:
+//Some code taken from Wikipedia: https://en.wikipedia.org/wiki/MD5
 //Official IETF md5 specification: https://www.ietf.org/rfc/rfc1321.txt
 //Dr. Herong Yang's cryptography tutorial: http://www.herongyang.com/Cryptography/MD5-Message-Digest-Algorithm-Overview.html
 //Md5 padding demo: https://fthb321.github.io/MD5-Hash/MD5OurVersion2.html
-//University of Nebraska - Lincoln md5 demo: https://cse.unl.edu/~ssamal/crypto/genhash.php
+//Saruj Samal's md5 demo from University of Nebraska - Lincoln: https://cse.unl.edu/~ssamal/crypto/genhash.php
+//Rapid Tables binary converters: https://www.rapidtables.com/convert/number/binary-to-decimal.html
 
 #include <iostream>
 #include <conio.h>
@@ -98,7 +99,7 @@ int main()
 	for (int i = 0; i < 64; i++) {
 		K->push_back(
 			ConvertToBinary(
-				(long long)(pow(2,32) * abs(sin(i+1))),
+				(long long)(pow(2, 32) * abs(sin(i + 1))),
 			32)
 		);
 	}
@@ -162,32 +163,36 @@ int main()
 		uint8_t* f = new uint8_t[32];
 		int m;
 
-		for (int i = 0; i < 64; i++) {
+		for (int round = 0; round < 64; round++) {
 			for (int j = 0; j < 32; j++) {
-				if (i >= 0 && i <= 15) {
+				if (round >= 0 && round <= 15) {
+					//(B and C) or (~B and D)
 					f[j] = ((bufferB[j] && bufferC[j]) || ((!bufferB[j]) && bufferD[j]));
-					m = i;
+					m = round;
 				}
-				else if (i >= 16 && i <= 31) {
+				else if (round >= 16 && round <= 31) {
+					//(D and B) or (~D and C)
 					f[j] = ((bufferD[j] && bufferB[j]) || ((!bufferD[j]) && bufferC[j]));
-					m = (((5 * i) + 1) % 16);
+					m = (((5 * round) + 1) % 16);
 				}
-				else if (i >= 32 && i <= 47) {
+				else if (round >= 32 && round <= 47) {
+					//B xor C xor D
 					f[j] = (!(!bufferB[j] != !bufferC[j]) != !bufferD[j]);
-					m = (((3 * i) + 5) % 16);
+					m = (((3 * round) + 5) % 16);
 				}
-				else if (i >= 48 && i <= 63) {
+				else if (round >= 48 && round <= 63) {
+					//C xor (B or ~D)
 					f[j] = (!bufferC[j] != !(bufferB[j] || (!bufferD[j])));
-					m = ((7 * i) % 16);
+					m = ((7 * round) % 16);
 				}
 			}
 
 			//Bitwise modular add bufferA, the result of the above functions, the appropriate constant, and the appropriate message block
-			uint8_t* firstLevel = ModularBinaryAdd(K->at(i), MessageHolder->at(m));
+			uint8_t* firstLevel = ModularBinaryAdd(K->at(round), MessageHolder->at(m));
 			uint8_t* secondLevel = ModularBinaryAdd(bufferA, firstLevel);
 			f = ModularBinaryAdd(f, secondLevel);
 
-			LeftRotate(f, ShiftAmount[i]);
+			LeftRotate(f, ShiftAmount[round]);
 
 			//Shuffle the buffers
 			bufferA = bufferD;
@@ -314,6 +319,7 @@ uint8_t* SliceVector(std::vector<uint8_t>* v, int startIndex, int endIndex) {
 	return returnArray;
 }
 
+//Breaks the bitList into chunks of 8 bits and reverses the order the chunks are in
 uint8_t* ChangeEndianess(uint8_t* bitList, int bitListLength) {
 	uint8_t* newList = new uint8_t[bitListLength];
 

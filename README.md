@@ -13,5 +13,5 @@
 <li>Assuming that all characters are letters, numbers, and symbols represented by ASCII, message chuncks will have zeros in known locations. This will give some direction in guessing the values for the message chunk and buffer A.</li>
 <li>My goal is that using this methodology will allow me to reverse an md5 hash to at least some degree.</li>
 <br>
-<p>Currently, this outputs what the values of the four buffers would be at the end of the 64 rounds for the given hash.</p>
+<p>Currently, this outputs the binary sum of buffer A and the message chucnk at the begining of round 63.</p>
 </ul>
